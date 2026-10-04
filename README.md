@@ -145,8 +145,7 @@ Monitorización: `/actuator/health`, `/actuator/circuitbreakers`,
 
 ## Despliegue en AWS EC2
 
-1. Lanza una instancia **Amazon Linux 2023** de tipo `t3.large` (8 GB). Una `t3.medium`
-   también arranca gracias al swap que crea el script, pero va más justa.
+1. Lanza una instancia **Amazon Linux 2023** de tipo `c7i.flex.large` apto para la capa gratuita. 
 2. Security Group, reglas de entrada:
 
    | Puerto | Origen | Motivo |
