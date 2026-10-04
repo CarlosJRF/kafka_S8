@@ -7,14 +7,16 @@
 #   REPO_BRANCH   branch to deploy          (default: main)
 #   APP_DIR       where to clone it         (default: /opt/kafka-s8)
 #   GATEWAY_PORT  public port of the gateway (default: 80)
+#   BUILDX_VERSION buildx plugin to install (default: v0.37.1; compose build needs >= 0.17.0)
 set -euxo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/CarlosJRF/kafka_S8.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 APP_DIR="${APP_DIR:-/opt/kafka-s8}"
 GATEWAY_PORT="${GATEWAY_PORT:-80}"
+BUILDX_VERSION="${BUILDX_VERSION:-v0.37.1}"
 
-# --- Docker Engine + Compose v2 plugin
+# --- Docker Engine + Compose v2 and buildx plugins
 dnf install -y docker git
 systemctl enable --now docker
 usermod -aG docker ec2-user || true
@@ -27,6 +29,24 @@ if ! docker compose version > /dev/null 2>&1; then
     -o "$PLUGINS/docker-compose"
   chmod +x "$PLUGINS/docker-compose"
 fi
+
+# The docker package of Amazon Linux ships without buildx (or with an old one), and
+# "docker compose build" refuses to run with buildx older than 0.17.0.
+BUILDX_MIN=0.17.0
+current_buildx="$(docker buildx version 2> /dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n1 | tr -d v || true)"
+if [ -z "$current_buildx" ] \
+    || [ "$(printf '%s\n%s\n' "$BUILDX_MIN" "$current_buildx" | sort -V | head -n1)" != "$BUILDX_MIN" ]; then
+  case "$ARCH" in
+    x86_64) BUILDX_ARCH=amd64 ;;
+    aarch64) BUILDX_ARCH=arm64 ;;
+    *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+  esac
+  curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-${BUILDX_ARCH}" \
+    -o "$PLUGINS/docker-buildx"
+  chmod +x "$PLUGINS/docker-buildx"
+fi
+docker buildx version
+docker compose version
 
 # --- 2 GB swap: seven JVMs + Kafka + PostgreSQL are tight on 4 GB instances
 if ! swapon --show | grep -q /swapfile; then
