@@ -1,0 +1,29 @@
+
+==> Downstream healthy
+source=live error=null
+circuit breaker: HALF_OPEN
+
+==> Stopping data-processor-service
+call 1: source=cache error="ResourceAccessException: I/O error on GET request for \
+call 2: source=cache error="CallNotPermittedException: CircuitBreaker 'dataProcessor' is OPEN and does not p
+call 3: source=cache error="CallNotPermittedException: CircuitBreaker 'dataProcessor' is OPEN and does not p
+call 4: source=cache error="CallNotPermittedException: CircuitBreaker 'dataProcessor' is OPEN and does not p
+call 5: source=cache error="CallNotPermittedException: CircuitBreaker 'dataProcessor' is OPEN and does not p
+call 6: source=cache error="CallNotPermittedException: CircuitBreaker 'dataProcessor' is OPEN and does not p
+circuit breaker: OPEN
+
+==> Starting data-processor-service again
+healthy; the OPEN circuit lets trial calls through after 15s (HALF_OPEN)
+OPEN: source=cache error="CallNotPermittedException: CircuitBreaker 'dataProcessor' is OPEN and does not p
+HALF_OPEN: source=live error=null
+HALF_OPEN: source=live error=null
+circuit breaker: CLOSED
+
+==> Circuit breaker transitions
+  State transition from CLOSED to OPEN
+  State transition from OPEN to HALF_OPEN
+  State transition from HALF_OPEN to OPEN
+  State transition from OPEN to HALF_OPEN
+  State transition from HALF_OPEN to OPEN
+  State transition from OPEN to HALF_OPEN
+  State transition from HALF_OPEN to CLOSED

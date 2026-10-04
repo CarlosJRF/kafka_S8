@@ -1,0 +1,10 @@
+SERVICE                  IMAGE                             STATUS                        PORTS
+api-gateway              kafka-s8/api-gateway              Up 4 minutes (healthy)        0.0.0.0:8080->8080/tcp
+auth-server              kafka-s8/auth-server              Up 4 minutes (healthy)        
+config-server            kafka-s8/config-server            Up 4 minutes (healthy)        127.0.0.1:8888->8888/tcp
+data-ingestion-service   kafka-s8/data-ingestion-service   Up 4 minutes (healthy)        
+data-processor-service   kafka-s8/data-processor-service   Up About a minute (healthy)   
+discovery-server         kafka-s8/discovery-server         Up 4 minutes (healthy)        127.0.0.1:8761->8761/tcp
+kafka                    apache/kafka:3.9.1                Up 4 minutes (healthy)        9092/tcp, 127.0.0.1:9094->9094/tcp
+postgres                 postgres:16-alpine                Up 4 minutes (healthy)        5432/tcp
+resilient-client         kafka-s8/resilient-client         Up 4 minutes (healthy)        127.0.0.1:8083->8083/tcp

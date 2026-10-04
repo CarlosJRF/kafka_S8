@@ -1,0 +1,217 @@
+
+==> Request without token -> expected 401
+HTTP 401
+
+==> Client Credentials grant (scope data.read ingestion.write)
+access_token: eyJraWQiOiIyNjg3NTNiYy01ZDhlLTQ4ZWItYWIz...
+
+==> Waiting for every route to be registered in Eureka (503 until then)
+/api/ingestion/last-report -> HTTP 404
+/api/stats -> HTTP 200
+/api/client/stats -> HTTP 200
+
+==> Read-only token trying to trigger ingestion -> expected 403
+HTTP 403
+
+==> Ingest the legacy CSV files (validation + publish to Kafka)
+{
+  "startedAt": "2026-10-04T04:58:05.063115644Z",
+  "duration": "PT1.031468644S",
+  "totalAccepted": 1552,
+  "totalRejected": 1448,
+  "files": [
+    {
+      "file": "intereses.csv",
+      "topic": "interests-validated",
+      "read": 1000,
+      "accepted": 465,
+      "rejected": 535,
+      "rejectionReasons": {
+        "edad": 52,
+        "nombre": 50,
+        "saldo": 211,
+        "tipo": 331
+      }
+    },
+    {
+      "file": "transacciones.csv",
+      "topic": "transactions-validated",
+      "read": 1000,
+      "accepted": 401,
+      "rejected": 599,
+      "rejectionReasons": {
+        "fecha": 55,
+        "monto": 327,
+        "tipo": 371
+      }
+    },
+    {
+      "file": "cuentas_anuales.csv",
+      "topic": "annual-accounts-validated",
+      "read": 1000,
+      "accepted": 686,
+      "rejected": 314,
+      "rejectionReasons": {
+        "monto": 314
+      }
+    }
+  ]
+}
+
+==> Waiting for data-processor-service to consume the 3000 events
+{
+  "productosConInteres": 465,
+  "transacciones": 401,
+  "movimientosAnuales": 686,
+  "filasRechazadas": 1448,
+  "rechazadasPorArchivo": {
+    "cuentas_anuales.csv": 314,
+    "transacciones.csv": 599,
+    "intereses.csv": 535
+  }
+}
+
+==> Transactions summary
+{
+  "transacciones": 401,
+  "totalCredito": 259000.00,
+  "totalDebito": 268000.00,
+  "neto": -9000.00
+}
+
+==> Account 105 summary (movements + interest products)
+{
+  "cuentaId": 105,
+  "movimientos": 39,
+  "totalesPorTipo": {
+    "compra": 17000.00,
+    "deposito": 25500.00,
+    "retiro": 24500.00,
+    "pago": 7000.00
+  },
+  "saldoNeto": -23000.00,
+  "productos": [
+    {
+      "tipo": "ahorro",
+      "titular": "Diana Prince",
+      "saldo": 7000.00,
+      "tasaAnual": 0.0250,
+      "interesAnual": 175.00
+    },
+    {
+      "tipo": "prestamo",
+      "titular": "Diana Prince",
+      "saldo": 10000.00,
+      "tasaAnual": 0.1200,
+      "interesAnual": 1200.00
+    },
+    {
+      "tipo": "ahorro",
+      "titular": "Bob Johnson",
+      "saldo": 8000.00,
+      "tasaAnual": 0.0250,
+      "interesAnual": 200.00
+    },
+    {
+      "tipo": "prestamo",
+      "titular": "Steve Rogers",
+      "saldo": 10000.00,
+      "tasaAnual": 0.1200,
+      "interesAnual": 1200.00
+    },
+    {
+      "tipo": "prestamo",
+      "titular": "Alice Brown",
+      "saldo": 8000.00,
+      "tasaAnual": 0.1200,
+      "interesAnual": 960.00
+    },
+    {
+      "tipo": "hipoteca",
+      "titular": "Jane Smith",
+      "saldo": 12000.00,
+      "tasaAnual": 0.0650,
+      "interesAnual": 780.00
+    },
+    {
+      "tipo": "prestamo",
+      "titular": "Alice Brown",
+      "saldo": 10000.00,
+      "tasaAnual": 0.1200,
+      "interesAnual": 1200.00
+    },
+    {
+      "tipo": "prestamo",
+      "titular": "Jane Smith",
+      "saldo": 8000.00,
+      "tasaAnual": 0.1200,
+      "interesAnual": 960.00
+    },
+    {
+      "tipo": "ahorro",
+      "titular": "Steve Rogers",
+      "saldo": 10000.00,
+      "tasaAnual": 0.0250,
+      "interesAnual": 250.00
+    }
+  ],
+  "interesAnualTotal": 6925.00
+}
+
+==> Sample of rejected rows of transacciones.csv
+[
+  {
+    "sourceId": "transacciones.csv:4",
+    "line": 4,
+    "raw": "{\"id\":\"3\",\"fecha\":\"2024-04-09\",\"monto\":\"800\",\"tipo\":\"invalid\"}",
+    "reasons": "tipo: desconocido ('invalid')"
+  },
+  {
+    "sourceId": "transacciones.csv:5",
+    "line": 5,
+    "raw": "{\"id\":\"4\",\"fecha\":\"04/05/2024\",\"monto\":\"\",\"tipo\":\"invalid\"}",
+    "reasons": "monto: vacio o no numerico; tipo: desconocido ('invalid')"
+  },
+  {
+    "sourceId": "transacciones.csv:8",
+    "line": 8,
+    "raw": "{\"id\":\"7\",\"fecha\":\"2024-13-01\",\"monto\":\"700\",\"tipo\":\"debito\"}",
+    "reasons": "fecha: vacia o invalida ('2024-13-01')"
+  }
+]
+
+==> Same data through resilient-client (Circuit Breaker + Retry + Rate Limiter)
+{
+  "source": "live",
+  "retrievedAt": "2026-10-04T04:58:10.574780027Z",
+  "data": {
+    "productosConInteres": 465,
+    "transacciones": 401,
+    "movimientosAnuales": 686,
+    "filasRechazadas": 1448,
+    "rechazadasPorArchivo": {
+      "cuentas_anuales.csv": 314,
+      "transacciones.csv": 599,
+      "intereses.csv": 535
+    }
+  },
+  "error": null
+}
+
+==> Circuit breaker state (resilient-client actuator)
+{
+  "circuitBreakers": {
+    "dataProcessor": {
+      "bufferedCalls": 2,
+      "failedCalls": 0,
+      "failureRate": "-1.0%",
+      "failureRateThreshold": "50.0%",
+      "notPermittedCalls": 0,
+      "slowCallRate": "-1.0%",
+      "slowCallRateThreshold": "80.0%",
+      "slowCalls": 0,
+      "slowFailedCalls": 0,
+      "state": "CLOSED"
+    }
+  }
+}
