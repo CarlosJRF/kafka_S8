@@ -1,0 +1,18 @@
+$ kafka-topics.sh --describe (excerpt)
+Topic: transactions-validated	PartitionCount: 3	ReplicationFactor: 1
+Topic: ingestion-rejected	PartitionCount: 1	ReplicationFactor: 1
+Topic: interests-validated	PartitionCount: 3	ReplicationFactor: 1
+Topic: annual-accounts-validated	PartitionCount: 3	ReplicationFactor: 1
+
+$ kafka-consumer-groups.sh --describe --group data-processor
+TOPIC                        PARTITION CURRENT-OFFSET LOG-END-OFFSET LAG 
+transactions-validated       0         139            139            0   
+interests-validated          0         133            133            0   
+annual-accounts-validated    0         237            237            0   
+ingestion-rejected           0         1448           1448           0   
+interests-validated          2         157            157            0   
+annual-accounts-validated    2         226            226            0   
+transactions-validated       1         126            126            0   
+interests-validated          1         175            175            0   
+transactions-validated       2         136            136            0   
+annual-accounts-validated    1         223            223            0   

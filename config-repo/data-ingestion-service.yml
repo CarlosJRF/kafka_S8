@@ -1,0 +1,22 @@
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # Durable, duplicate-free publishing.
+      acks: all
+      retries: 5
+      properties:
+        enable.idempotence: true
+        linger.ms: 20
+
+ingestion:
+  data-dir: ${INGESTION_DATA_DIR:../data}
+  run-on-startup: ${INGESTION_RUN_ON_STARTUP:false}
+  topics:
+    interests: interests-validated
+    transactions: transactions-validated
+    annual-accounts: annual-accounts-validated
+    rejected: ingestion-rejected
+    partitions: 3

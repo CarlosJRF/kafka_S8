@@ -1,0 +1,68 @@
+spring:
+  security:
+    oauth2:
+      client:
+        # Service identity used to call data-processor-service (Client Credentials grant).
+        registration:
+          data-processor:
+            provider: auth-server
+            client-id: ${RESILIENT_CLIENT_ID:resilient-client}
+            client-secret: ${RESILIENT_CLIENT_SECRET:resilient-secret}
+            authorization-grant-type: client_credentials
+            scope: data.read
+        provider:
+          auth-server:
+            token-uri: ${AUTH_SERVER_URL:http://localhost:9000}/oauth2/token
+
+client:
+  processor:
+    base-url: http://data-processor-service
+    connect-timeout: 2s
+    read-timeout: 3s
+
+resilience4j:
+  circuitbreaker:
+    # Lower value = outer aspect: the circuit breaker wraps the retry, so one
+    # exhausted retry sequence counts as a single failure and the fallback lives here.
+    circuit-breaker-aspect-order: 1
+    instances:
+      dataProcessor:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 4
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 80
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+  retry:
+    retry-aspect-order: 2
+    instances:
+      dataProcessor:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+  ratelimiter:
+    instances:
+      clientApi:
+        limit-for-period: 20
+        limit-refresh-period: 1s
+        timeout-duration: 0s
+
+management:
+  health:
+    circuitbreakers:
+      enabled: true
+    ratelimiters:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers,circuitbreakerevents,retries,ratelimiters

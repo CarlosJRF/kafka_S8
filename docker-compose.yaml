@@ -1,0 +1,178 @@
+# Full ecosystem: Kafka (KRaft), PostgreSQL, Spring Cloud infrastructure and business services.
+#
+#   docker compose up -d --build
+#
+# Only the API Gateway is published on all interfaces (GATEWAY_PORT, default 8080).
+# The dashboards (Eureka, config-server, resilient-client actuator) are bound to
+# 127.0.0.1; on EC2 reach them through an SSH tunnel.
+
+name: kafka-s8
+
+x-spring-service: &spring-service
+  restart: unless-stopped
+  mem_limit: ${SERVICE_MEM_LIMIT:-512m}
+  networks: [backend]
+
+x-spring-env: &spring-env
+  CONFIG_SERVER_URL: http://config-server:8888
+  EUREKA_URL: http://discovery-server:8761/eureka/
+  AUTH_SERVER_URL: http://auth-server:9000
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  JAVA_OPTS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
+
+services:
+
+  # ---------------------------------------------------------------- infrastructure
+  kafka:
+    image: apache/kafka:3.9.1
+    restart: unless-stopped
+    networks: [backend]
+    environment:
+      # Single node in KRaft mode (broker + controller): no Zookeeper needed.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-C6yOlwlrTAG2GsmQS1X7YQ}
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Needed for the <topic>.DLT dead-letter topics created on first use.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: -Xmx512m -Xms256m
+    ports:
+      - "127.0.0.1:9094:9094"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 20s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [backend]
+    environment:
+      POSTGRES_DB: banking
+      POSTGRES_USER: ${DB_USER:-banking}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-banking}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d banking"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------- spring cloud
+  config-server:
+    <<: *spring-service
+    build: ./config-server
+    image: kafka-s8/config-server
+    environment:
+      CONFIG_PROFILE: native
+      CONFIG_REPO_LOCATION: file:/config-repo/
+      JAVA_OPTS: -XX:MaxRAMPercentage=75
+    volumes:
+      - ./config-repo:/config-repo:ro
+    ports:
+      - "127.0.0.1:8888:8888"
+
+  discovery-server:
+    <<: *spring-service
+    build: ./discovery-server
+    image: kafka-s8/discovery-server
+    environment:
+      EUREKA_HOSTNAME: discovery-server
+      JAVA_OPTS: -XX:MaxRAMPercentage=75
+    ports:
+      - "127.0.0.1:8761:8761"
+
+  auth-server:
+    <<: *spring-service
+    build: ./auth-server
+    image: kafka-s8/auth-server
+    environment:
+      <<: *spring-env
+      AUTH_ISSUER: http://auth-server:9000
+      BANKING_CLIENT_ID: ${BANKING_CLIENT_ID:-banking-client}
+      BANKING_CLIENT_SECRET: ${BANKING_CLIENT_SECRET:-banking-secret}
+      RESILIENT_CLIENT_ID: ${RESILIENT_CLIENT_ID:-resilient-client}
+      RESILIENT_CLIENT_SECRET: ${RESILIENT_CLIENT_SECRET:-resilient-secret}
+    depends_on:
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+
+  api-gateway:
+    <<: *spring-service
+    build: ./api-gateway
+    image: kafka-s8/api-gateway
+    environment: *spring-env
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+      auth-server: { condition: service_healthy }
+
+  # ---------------------------------------------------------------- business services
+  data-ingestion-service:
+    <<: *spring-service
+    build: ./data-ingestion-service
+    image: kafka-s8/data-ingestion-service
+    environment:
+      <<: *spring-env
+      INGESTION_DATA_DIR: /data
+      INGESTION_RUN_ON_STARTUP: ${INGESTION_RUN_ON_STARTUP:-false}
+    volumes:
+      - ./data:/data:ro
+    depends_on:
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  data-processor-service:
+    <<: *spring-service
+    build: ./data-processor-service
+    image: kafka-s8/data-processor-service
+    environment:
+      <<: *spring-env
+      DB_URL: jdbc:postgresql://postgres:5432/banking
+      DB_USER: ${DB_USER:-banking}
+      DB_PASSWORD: ${DB_PASSWORD:-banking}
+    depends_on:
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  resilient-client:
+    <<: *spring-service
+    build: ./resilient-client
+    image: kafka-s8/resilient-client
+    environment:
+      <<: *spring-env
+      RESILIENT_CLIENT_ID: ${RESILIENT_CLIENT_ID:-resilient-client}
+      RESILIENT_CLIENT_SECRET: ${RESILIENT_CLIENT_SECRET:-resilient-secret}
+    ports:
+      - "127.0.0.1:8083:8083"
+    depends_on:
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_healthy }
+      auth-server: { condition: service_healthy }
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  kafka-data:
+  postgres-data:
