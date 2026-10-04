@@ -1,0 +1,8 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: data-ingestion-service
+  config:
+    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
