@@ -1,0 +1,29 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            # Token endpoint published through the gateway so clients only need port 8080.
+            - id: auth-server
+              uri: ${AUTH_SERVER_URL:http://localhost:9000}
+              predicates:
+                - Path=/oauth2/token,/oauth2/jwks
+            - id: data-ingestion-service
+              uri: lb://data-ingestion-service
+              predicates:
+                - Path=/api/ingestion/**
+            - id: data-processor-service
+              uri: lb://data-processor-service
+              predicates:
+                - Path=/api/accounts/**,/api/transactions/**,/api/stats/**
+            - id: resilient-client
+              uri: lb://resilient-client
+              predicates:
+                - Path=/api/client/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

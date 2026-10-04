@@ -1,0 +1,26 @@
+server:
+  port: ${SERVER_PORT:8888}
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    # "native" reads the YAML files from a local folder (config-repo/).
+    # Switch to "git" (CONFIG_PROFILE=git) to read them from a Git repository.
+    active: ${CONFIG_PROFILE:native}
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: ${CONFIG_REPO_LOCATION:file:../config-repo/}
+        git:
+          uri: ${CONFIG_GIT_URI:https://github.com/CarlosJRF/kafka_S8}
+          default-label: ${CONFIG_GIT_LABEL:main}
+          search-paths: config-repo
+          clone-on-start: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
