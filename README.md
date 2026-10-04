@@ -162,8 +162,20 @@ Monitorización: `/actuator/health`, `/actuator/circuitbreakers`,
    ```bash
    sudo REPO_BRANCH=main bash deploy/ec2-setup.sh
    ```
-   El script instala Docker y Compose, crea 2 GB de swap, clona el repositorio en
-   `/opt/kafka-s8`, publica el gateway en el puerto 80 y ejecuta `docker compose up -d --build --wait`.
+   El script instala Docker, Compose y buildx (`v0.37.1`; `docker compose build` exige
+   buildx ≥ 0.17.0 y el paquete `docker` de Amazon Linux no lo trae), crea 2 GB de swap,
+   clona el repositorio en `/opt/kafka-s8`, publica el gateway en el puerto 80 y ejecuta
+   `docker compose up -d --build --wait`.
+
+   Si en una instancia ya preparada aparece `compose build requires buildx 0.17.0 or later`,
+   vuelve a ejecutar el script (instala buildx y retoma el arranque) o instala el plugin a mano:
+   ```bash
+   ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+   sudo curl -fsSL "https://github.com/docker/buildx/releases/download/v0.37.1/buildx-v0.37.1.linux-${ARCH}" \
+     -o /usr/local/lib/docker/cli-plugins/docker-buildx
+   sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+   docker buildx version && docker compose up -d --build --wait
+   ```
 4. Comprobación desde tu máquina: `GATEWAY_URL=http://<ip-publica> scripts/demo.sh`.
 
 Cambia los secretos de `.env` (`BANKING_CLIENT_SECRET`, `RESILIENT_CLIENT_SECRET`,
